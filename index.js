@@ -1,25 +1,15 @@
-// * Prérequis d'importations
+// ? Imports nécessaires
+
 const fs = require("node:fs");
 const path = require("node:path");
-const {
-  Client,
-  Events,
-  GatewayIntentBits,
-  resolveBuilder,
-  Collection,
-} = require("discord.js");
-const { BOT_TOKEN } = require("./.env");
+const { Client, Collection, GatewayIntentBits } = require("discord.js");
 require("dotenv").config();
-// * On créer la nouvelle instance du bot
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-client.once(Events.ClientReady, (readyClient) => {
-  console.log(`Bot lancé en tant que : ${readyClient.user.tag} `);
-});
+// ? récupération des commandes
 
-client.login(process.env.BOT_TOKEN);
 client.commands = new Collection();
-
 const foldersPath = path.join(__dirname, "commands");
 const commandFolders = fs.readdirSync(foldersPath);
 
@@ -35,35 +25,26 @@ for (const folder of commandFolders) {
       client.commands.set(command.data.name, command);
     } else {
       console.log(
-        '[WARNING] The comand at ${filePath} is missing a required "data" of "execute" property.',
+        `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`,
       );
     }
   }
 }
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-  const command = interaction.client.commands.get(interaction.commandName);
 
-  if (!command) {
-    console.error("No command matching ${interaction.commandName} was found");
-    return;
-  }
+const eventsPath = path.join(__dirname, "events");
+const eventsFiles = fs
+  .readdirSync(eventsPath)
+  .filter((file) => file.endsWith(".js"));
 
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    console.error(error);
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({
-        content: "An error occured while executing the command !",
-        flags: MessageFlags.Ephemeral,
-      });
-    } else {
-      await interaction.reply({
-        content: "An error occured while executing the command !",
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+for (const file of eventFiles) {
+  const filePath = path.join(eventsPath, file);
+  const event = require(filePath);
+  if (event.once) {
+    client.once(event.name, (...args) => event.execute(...args));
+  } else {
+    client.on(event.name, (...args) => event.execute(...args));
   }
-  console.log(interaction);
-});
+}
+
+// ? lancement du bot
+client.login(process.env.BOT_TOKEN);
